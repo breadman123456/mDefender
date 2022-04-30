@@ -72,7 +72,6 @@ import com.griefdefender.permission.GDPermissionManager;
 import com.griefdefender.permission.GDPermissionUser;
 import com.griefdefender.permission.GDPermissions;
 import com.griefdefender.permission.option.GDOptions;
-import com.griefdefender.provider.VaultProvider;
 import com.griefdefender.storage.BaseStorage;
 import com.griefdefender.task.ClaimVisualRevertTask;
 import com.griefdefender.util.PermissionUtil;
@@ -106,7 +105,6 @@ public class GDPlayerData implements PlayerData {
     public List<BlockSnapshot> queuedVisuals = new ArrayList<>();
     public UUID tempVisualUniqueId = null;
     public UUID petRecipientUniqueId;
-    private final VaultProvider vaultProvider = GriefDefenderPlugin.getInstance().getVaultProvider();
 
     public boolean ignoreClaims = false;
     public boolean debugClaimPermissions = false;
@@ -489,12 +487,10 @@ public class GDPlayerData implements PlayerData {
     }
 
     public int getInternalEconomyAvailablePurchaseCost() {
-        if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-            if (!this.vaultProvider.getApi().hasAccount(this.getSubject().getOfflinePlayer())) {
-                return 0;
-            }
+        SurvivalProfile profile = SurvivalProfile.getByUUID(this.getSubject().getOfflinePlayer().getUniqueId());
+        if (profile == null) return 0;
 
-            final double currentFunds = this.vaultProvider.getApi().getBalance(this.getSubject().getOfflinePlayer());
+            final int currentFunds = profile.getStatistics().balance();
             final Double economyBlockCost = this.getInternalEconomyBlockCost();
             return (int) Math.round((currentFunds / economyBlockCost));
         }
