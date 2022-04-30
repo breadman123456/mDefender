@@ -62,7 +62,6 @@ public class TaxApplyTask extends BukkitRunnable {
     private static Economy economy;
 
     public TaxApplyTask() {
-        economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
         int taxHour = GriefDefenderPlugin.getGlobalConfig().getConfig().economy.taxApplyHour;
         long delay = TaskUtil.computeDelay(taxHour, 0, 0);
         this.runTaskTimer(GDBootstrap.getInstance(), delay, 1728000L);
@@ -71,9 +70,6 @@ public class TaxApplyTask extends BukkitRunnable {
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public void run() {
-        if (economy == null) {
-            economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        }
         for (World world : Bukkit.getWorlds()) {
             if (!GriefDefenderPlugin.getInstance().claimsEnabledForWorld(world.getUID())) {
                 continue;
@@ -134,8 +130,8 @@ public class TaxApplyTask extends BukkitRunnable {
         final double taxBalance = claim.getEconomyData().getTaxBalance();
         taxRate = event.getTaxRate();
         taxOwed = taxBalance + (claim.getClaimBlocks() * taxRate);
-        final EconomyResponse response = EconomyUtil.getInstance().withdrawTax(claim, player, taxOwed);
-        if (!response.transactionSuccess()) {
+        final boolean response = EconomyUtils.getInstance().withdrawTax(claim, player, taxOwed);
+        if (!response) {
             final Instant localNow = Instant.now();
             Instant taxPastDueDate = claim.getEconomyData().getTaxPastDueDate();
             if (taxPastDueDate == null) {
@@ -167,9 +163,6 @@ public class TaxApplyTask extends BukkitRunnable {
                 town.getData()
                     .getEconomyData()
                     .addPaymentTransaction(new GDPaymentTransaction(TransactionType.TAX, TransactionResultType.SUCCESS, Instant.now(), taxOwed));
-                if (town.getEconomyAccountId().isPresent()) {
-                    economy.bankDeposit(town.getEconomyAccountId().get().toString(), taxOwed);
-                }
             }
             claim.getData().save();
         }
