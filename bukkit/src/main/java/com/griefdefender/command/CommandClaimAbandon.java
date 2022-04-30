@@ -173,12 +173,8 @@ public class CommandClaimAbandon extends BaseCommand {
             }
 
             if (!claim.isSubdivision() && !claim.isAdminClaim()) {
-                if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                    final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-                    if (!economy.hasAccount(user.getOfflinePlayer())) {
-                        return;
-                    }
-                }
+                SurvivalProfile profile = SurvivalProfile.getByUUID(user.getOfflinePlayer().getUniqueId());
+                if (profile == null) return;
             }
 
             final GDPlayerData playerData = user.getInternalPlayerData();
@@ -187,8 +183,7 @@ public class CommandClaimAbandon extends BaseCommand {
             final ClaimResult claimResult = claimManager.deleteClaimInternal(claim, abandonTopClaim);
             playerData.useRestoreSchematic = false;
             if (!claimResult.successful()) {
-                TextAdapter.sendComponent(source, event.getMessage().orElse(GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_FAILED,
-                        ImmutableMap.of("result", claimResult.getMessage().orElse(TextComponent.of(claimResult.getResultType().toString()))))));
+                TextAdapter.sendComponent(source, event.getMessage().orElse(GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_FAILED, ImmutableMap.of("result", claimResult.getMessage().orElse(TextComponent.of(claimResult.getResultType().toString()))))));
                 return;
             }
 
@@ -222,21 +217,18 @@ public class CommandClaimAbandon extends BaseCommand {
                 }
                 final double abandonReturnRatio = GDPermissionManager.getInstance().getInternalOptionValue(TypeToken.of(Double.class), user, Options.ABANDON_RETURN_RATIO, claim);
                 if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                    final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
                     final double requiredClaimBlocks = claim.getClaimBlocks() * abandonReturnRatio;
                     final double refund = requiredClaimBlocks * claim.getOwnerEconomyBlockCost();
-                    final EconomyResponse result = economy.depositPlayer(user.getOfflinePlayer(), refund);
-                    if (result.transactionSuccess()) {
-                        final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_ABANDON_SUCCESS, ImmutableMap.of(
-                                "amount", refund));
+                    final boolean result = profile.getStatistics().deposit(user.getOfflinePlayer(), refund);
+                    if (result) {
+                        final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_ABANDON_SUCCESS, ImmutableMap.of("amount", refund));
                         GriefDefenderPlugin.sendMessage(source, message);
                     }
                 } else {
                     int newAccruedClaimCount = playerData.getAccruedClaimBlocks() - ((int) Math.ceil(claim.getClaimBlocks() * (1 - abandonReturnRatio)));
                     playerData.setAccruedClaimBlocks(newAccruedClaimCount);
                     int remainingBlocks = playerData.getRemainingClaimBlocks();
-                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_SUCCESS, ImmutableMap.of(
-                            "amount", remainingBlocks));
+                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_SUCCESS, ImmutableMap.of("amount", remainingBlocks));
                     GriefDefenderPlugin.sendMessage(source, message);
                 }
             }
