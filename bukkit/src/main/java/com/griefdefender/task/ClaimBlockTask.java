@@ -48,7 +48,6 @@ public class ClaimBlockTask extends BukkitRunnable {
         this.runTaskTimer(GDBootstrap.getInstance(), 1L, 20L * 60 * 5);
     }
 
-    @Override
     public void run() {
         for (World world : Bukkit.getServer().getWorlds()) {
             final int blockMoveThreshold = GriefDefenderPlugin.getActiveConfig(world).getConfig().claim.claimBlockTaskMoveThreshold;
@@ -59,33 +58,12 @@ public class ClaimBlockTask extends BukkitRunnable {
                 final int accrualPerHour = GDPermissionManager.getInstance().getInternalOptionValue(TypeToken.of(Integer.class), holder, Options.BLOCKS_ACCRUED_PER_HOUR, claim).intValue();
                 if (accrualPerHour > 0) {
                     Location lastLocation = playerData.lastAfkCheckLocation;
-                    // if he's not in a vehicle and has moved at least three blocks since the last check and he's not being pushed around by fluids
-                    if (player.getVehicle() == null &&
-                            (lastLocation == null || lastLocation.getWorld() != player.getWorld() || lastLocation.distanceSquared(player.getLocation()) >= (blockMoveThreshold * blockMoveThreshold)) &&
-                            !NMSUtil.getInstance().isBlockWater(player.getLocation().getBlock())) {
+                    if (player.getVehicle() == null && (lastLocation == null || lastLocation.getWorld() != player.getWorld() || lastLocation.distanceSquared(player.getLocation()) >= (blockMoveThreshold * blockMoveThreshold)) && !NMSUtil.getInstance().isBlockWater(player.getLocation().getBlock())) {
                         int accruedBlocks = playerData.getBlocksAccruedPerHour() / 12;
-                        if (accruedBlocks < 0) {
-                            accruedBlocks = 1;
-                        }
-
-                        if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                            final VaultProvider vaultProvider = GriefDefenderPlugin.getInstance().getVaultProvider();
-                            if (!vaultProvider.hasAccount(player)) {
-                                continue;
-                            }
-                            vaultProvider.depositPlayer(player, accruedBlocks);
-                        } else {
-                            int currentTotal = playerData.getAccruedClaimBlocks();
-                            if ((currentTotal + accruedBlocks) > playerData.getMaxAccruedClaimBlocks()) {
-                                playerData.setAccruedClaimBlocks(playerData.getMaxAccruedClaimBlocks());
-                                playerData.lastAfkCheckLocation = player.getLocation();
-                                continue;
-                            }
-
-                            playerData.setAccruedClaimBlocks(playerData.getAccruedClaimBlocks() + accruedBlocks);
-                        }
+                        if (accruedBlocks < 0) accruedBlocks = 1;
+                        SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+                        profile.getStatistics().addBalance(accruedBlocks);
                     }
-
                     playerData.lastAfkCheckLocation = player.getLocation();
                 }
             }
