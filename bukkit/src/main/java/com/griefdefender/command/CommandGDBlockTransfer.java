@@ -68,16 +68,6 @@ public class CommandGDBlockTransfer extends BaseCommand {
     @Description("%economy-block-transfer")
     @Subcommand("economy blocktransfer")
     public void execute(CommandSender source, @Optional Integer blockCount) {
-        // if economy is disabled, don't do anything
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(source, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
-        if (!GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-            GriefDefenderPlugin.sendMessage(source, MessageCache.getInstance().ECONOMY_MODE_NOT_ENABLED);
-            return;
-        }
-
         final Component confirmationText = TextComponent.builder()
                 .append(MessageCache.getInstance().ECONOMY_BLOCK_TRANSFER_WARNING)
                 .append(TextComponent.builder()
@@ -125,10 +115,9 @@ public class CommandGDBlockTransfer extends BaseCommand {
                     continue;
                 }
                 System.out.println("Migrating user " + user.getFriendlyName() + " remaining claimblocks...");
-                final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-                if (!economy.hasAccount(user.getOfflinePlayer())) {
-                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of(
-                            "player", user.getFriendlyName()));
+                SurvivalProfile profile = SurvivalProfile.getByUUID(user.getOfflinePlayer().getUniqueId());
+                if (profile == null) {
+                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of("player", user.getFriendlyName()));
                     GriefDefenderPlugin.sendMessage(source, message);
                     continue;
                 }
@@ -143,31 +132,22 @@ public class CommandGDBlockTransfer extends BaseCommand {
 
                 // attempt to compute value and deposit it
                 double economyTotalValue = economyBlockCost * remainingBlocks;
-                final EconomyResponse result = economy.depositPlayer(user.getOfflinePlayer(), economyTotalValue);
+                boolean result = profile.getStatistics().deposit(user.getOfflinePlayer(), economyTotalValue);
     
-                if (!result.transactionSuccess()) {
-                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_DEPOSIT_ERROR, ImmutableMap.of(
-                            "reason", result.errorMessage));
+                if (!result) {
+                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_DEPOSIT_ERROR, ImmutableMap.of("reason", result.errorMessage));
                     GriefDefenderPlugin.sendMessage(source, message);
                     continue;
                 }
     
-                Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_MODE_BLOCK_SALE_CONFIRMATION,
-                            ImmutableMap.of(
-                            "deposit", "$" + String.format("%.2f", economyTotalValue),
-                            "balance", "$" + String.format("%.2f", economy.getBalance(user.getOfflinePlayer())),
-                            "amount", playerData.getRemainingClaimBlocks()));
+                Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_MODE_BLOCK_SALE_CONFIRMATION, ImmutableMap.of("deposit", "$" + String.format("%.2f", economyTotalValue), "balance", "$" + String.format("%.2f", profile.getStatistics().balance()), "amount", playerData.getRemainingClaimBlocks()));
                 playerData.setAccruedClaimBlocks(0);
                 playerData.setBonusClaimBlocks(0);
-                if (user.getOnlinePlayer() != null) {
-                    GriefDefenderPlugin.sendMessage(user.getOnlinePlayer(), message);
-                }
+                if (user.getOnlinePlayer() != null) GriefDefenderPlugin.sendMessage(user.getOnlinePlayer(), message);
                 count++;
             }
             if (count > 0) {
-                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_TRANSFER_SUCCESS,
-                        ImmutableMap.of(
-                        "count", count));
+                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_TRANSFER_SUCCESS, ImmutableMap.of("count", count));
                 GriefDefenderPlugin.sendMessage(source, message);
             } else {
                 GriefDefenderPlugin.sendMessage(source, MessageCache.getInstance().ECONOMY_BLOCK_TRANSFER_CANCEL);
