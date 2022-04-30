@@ -49,7 +49,6 @@ import com.griefdefender.event.GDCauseStackManager;
 import com.griefdefender.internal.visual.GDClaimVisual;
 import com.griefdefender.permission.GDPermissionUser;
 import com.griefdefender.permission.GDPermissions;
-import com.griefdefender.provider.VaultProvider;
 import com.griefdefender.util.PlayerUtil;
 
 import co.aikar.commands.BaseCommand;
@@ -164,34 +163,15 @@ public class CommandClaimContract extends BaseCommand {
                     }
                 }
             }
-            if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                final VaultProvider vaultProvider = GriefDefenderPlugin.getInstance().getVaultProvider();
-                if (vaultProvider.hasAccount(player)) {
-                    if (GriefDefenderPlugin.CLAIM_BLOCK_SYSTEM == ClaimBlockSystem.VOLUME) {
-                        final double claimableChunks = claimBlocksRemaining / 65536.0;
-                        final Map<String, Object> params = ImmutableMap.of(
-                                "balance", String.valueOf("$" + vaultProvider.getBalance(player)),
-                                "chunk-amount", Math.round(claimableChunks * 100.0)/100.0, 
-                                "block-amount", claimBlocksRemaining);
-                        GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_MODE_RESIZE_SUCCESS_3D, params));
-                    } else {
-                        final Map<String, Object> params = ImmutableMap.of(
-                                "balance", String.valueOf("$" + vaultProvider.getBalance(player)),
-                                "block-amount", claimBlocksRemaining);
-                        GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_MODE_RESIZE_SUCCESS_2D, params));
-                    }
-                }
-            } else {
+            SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+            if (profile != null) {
                 if (GriefDefenderPlugin.CLAIM_BLOCK_SYSTEM == ClaimBlockSystem.VOLUME) {
                     final double claimableChunks = claimBlocksRemaining / 65536.0;
-                    final Map<String, Object> params = ImmutableMap.of(
-                            "chunk-amount", Math.round(claimableChunks * 100.0)/100.0, 
-                            "block-amount", claimBlocksRemaining);
-                    GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.RESIZE_SUCCESS_3D, params));
+                    final Map<String, Object> params = ImmutableMap.of("balance", String.valueOf("$" + profile.getStatistics().balance()), "chunk-amount", Math.round(claimableChunks * 100.0) / 100.0, "block-amount", claimBlocksRemaining);
+                    GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_MODE_RESIZE_SUCCESS_3D, params));
                 } else {
-                    final Map<String, Object> params = ImmutableMap.of(
-                            "block-amount", claimBlocksRemaining);
-                    GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.RESIZE_SUCCESS_2D, params));
+                    final Map<String, Object> params = ImmutableMap.of("balance", String.valueOf("$" + profile.getStatistics().balance()), "block-amount", claimBlocksRemaining);
+                    GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_MODE_RESIZE_SUCCESS_2D, params));
                 }
             }
             playerData.revertClaimVisual(claim);
