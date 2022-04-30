@@ -119,7 +119,7 @@ public class BlockEventHandler implements Listener {
         }
 
         final World world = location.getWorld();
-        if (!GriefDefenderPlugin.getInstance().claimsEnabledForWorld(world.getUID()) || GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
+        if (!GriefDefenderPlugin.getInstance().claimsEnabledForWorld(world.getUID()) || GriefDefenderPlugin.getInstance().getttProvider() == null) {
             return;
         }
 
@@ -133,7 +133,7 @@ public class BlockEventHandler implements Listener {
 
         final GDClaim sourceClaim = GriefDefenderPlugin.getInstance().dataStore.getClaimAt(sourceLocation);
         final GDClaim targetClaim = GriefDefenderPlugin.getInstance().dataStore.getClaimAt(targetLocation);
-        if (sourceClaim.isWilderness() && targetClaim.isWilderness() || (GriefDefenderPlugin.getInstance().getVaultProvider() == null)) {
+        if (sourceClaim.isWilderness() && targetClaim.isWilderness()) {
             return;
         }
         if (sourceClaim.getEconomyData().isRented() || targetClaim.getEconomyData().isRented()) {
@@ -732,10 +732,6 @@ public class BlockEventHandler implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onSignChangeEvent(SignChangeEvent event) {
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            return;
-        }
-
         final GriefDefenderConfig<?> activeConfig = GriefDefenderPlugin.getActiveConfig(event.getBlock().getWorld().getUID());
         if (!activeConfig.getConfig().economy.isRentSignEnabled() && !activeConfig.getConfig().economy.isSellSignEnabled()) {
             return;
