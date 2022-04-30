@@ -58,20 +58,9 @@ public class CommandClaimBuyBlocks extends BaseCommand {
     @Syntax("[<amount>]")
     @Subcommand("buy blocks")
     public void execute(Player player, @Optional Integer blockCount) {
-        if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-            TextAdapter.sendComponent(player, MessageCache.getInstance().COMMAND_NOT_AVAILABLE_ECONOMY);
-            return;
-        }
-
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
-
-        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        if (economy == null || !economy.hasAccount(player)) {
-            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of(
-                    "player", player.getName()));
+        SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+        if (profile == null) {
+            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of("player", player.getName()));
             GriefDefenderPlugin.sendMessage(player, message);
             return;
         }
@@ -83,7 +72,7 @@ public class CommandClaimBuyBlocks extends BaseCommand {
             return;
         }
 
-        final double balance = economy.getBalance(player);
+        final double balance = profile.getStatistics().balance();
         if (blockCount == null) {
             final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_PURCHASE_COST, ImmutableMap.of(
                     "amount", "$" + String.format("%.2f", economyBlockCost),
@@ -105,20 +94,17 @@ public class CommandClaimBuyBlocks extends BaseCommand {
                     GriefDefenderPlugin.sendMessage(player, message);
                     return;
             }
-
-            final EconomyResponse result = EconomyUtil.getInstance().withdrawFunds(player, totalCost);
-            if (!result.transactionSuccess()) {
-                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_WITHDRAW_ERROR, ImmutableMap.of(
-                        "reason", result.errorMessage));
+            
+            final boolean result = profile.getStatistics().withdraw(player, totalCost);
+            if (!result) {
+                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_WITHDRAW_ERROR, ImmutableMap.of("reason", result.errorMessage));
                 GriefDefenderPlugin.sendMessage(player, message);
                 return;
             }
 
             final int bonusTotal = playerData.getBonusClaimBlocks();
             playerData.setBonusClaimBlocks(bonusTotal + blockCount);
-            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_PURCHASE_CONFIRMATION, ImmutableMap.of(
-                    "amount", "$" + String.format("%.2f", totalCost),
-                    "balance", playerData.getRemainingClaimBlocks()));
+            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_PURCHASE_CONFIRMATION, ImmutableMap.of("amount", "$" + String.format("%.2f", totalCost), "balance", playerData.getRemainingClaimBlocks()));
             GriefDefenderPlugin.sendMessage(player, message);
         }
     }
