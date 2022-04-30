@@ -114,8 +114,6 @@ import net.kyori.text.format.TextColor;
 import net.kyori.text.format.TextDecoration;
 import net.kyori.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.text.serializer.plain.PlainComponentSerializer;
-import net.milkbowl.vault.economy.Economy;
-import net.milkbowl.vault.economy.EconomyResponse;
 
 public class CommandHelper {
 
@@ -768,20 +766,16 @@ public class CommandHelper {
                 return;
             }
 
-            final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-            if (!economy.hasAccount(player)) {
-                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of(
-                        "player", player.getName()));
+            SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+            if (profile == null) {
+                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of("player", player.getName()));
                 GriefDefenderPlugin.sendMessage(player, message);
                 return;
             }
 
             final double balance = economy.getBalance(player);
             if (balance < claim.getEconomyData().getSalePrice()) {
-                Map<String, Object> params = ImmutableMap.of(
-                        "amount", claim.getEconomyData().getSalePrice(),
-                        "balance", balance,
-                        "amount_required", claim.getEconomyData().getSalePrice() -  balance);
+                Map<String, Object> params = ImmutableMap.of("amount", claim.getEconomyData().getSalePrice(), "balance", balance, "amount_required", claim.getEconomyData().getSalePrice() -  balance);
                 GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_BUY_NOT_ENOUGH_FUNDS, params));
                 return;
             }
@@ -804,10 +798,9 @@ public class CommandHelper {
             final Player player = (Player) src;
             final GDPermissionUser owner = PermissionHolderCache.getInstance().getOrCreateUser(claim.getOwnerUniqueId());
 
-            final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-            if (!economy.hasAccount(owner.getOfflinePlayer())) {
-                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of(
-                        "player", owner.getName()));
+            SurvivalProfile profile = SurvivalProfile.getByUUID(owner.getOfflinePlayer().getUniqueId());
+            if (profile == null) {
+                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of("player", owner.getName()));
                 GriefDefenderPlugin.sendMessage(player, message);
                 return;
             }
@@ -815,11 +808,7 @@ public class CommandHelper {
             GDCauseStackManager.getInstance().pushCause(player);
             final ClaimResult result = ((GDClaim) claim).transferOwner(player.getUniqueId(), true, false);
             if (!result.successful()) {
-                final Component defaultMessage = MessageStorage.MESSAGE_DATA.getMessage(MessageStorage.ECONOMY_CLAIM_BUY_TRANSFER_CANCELLED,
-                        ImmutableMap.of(
-                            "owner", owner.getName(),
-                            "player", player.getName(),
-                            "result", result.getMessage().orElse(TextComponent.of(result.getResultType().toString()))));
+                final Component defaultMessage = MessageStorage.MESSAGE_DATA.getMessage(MessageStorage.ECONOMY_CLAIM_BUY_TRANSFER_CANCELLED, ImmutableMap.of("owner", owner.getName(), "player", player.getName(), "result", result.getMessage().orElse(TextComponent.of(result.getResultType().toString()))));
                 TextAdapter.sendComponent(src, result.getMessage().orElse(defaultMessage));
                 return;
             }
@@ -1096,218 +1085,6 @@ public class CommandHelper {
             }
 
             TextAdapter.sendComponent(player, MessageCache.getInstance().TELEPORT_NO_SAFE_LOCATION);
-        };
-    }
-
-    public static void handleBankTransaction(CommandSender src, String[] args, GDClaim claim) {
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(src, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
-
-        if (claim.isSubdivision() || claim.isAdminClaim()) {
-            return;
-        }
-
-        if (!claim.getEconomyAccountId().isPresent()) {
-            GriefDefenderPlugin.sendMessage(src, MessageCache.getInstance().ECONOMY_VIRTUAL_NOT_SUPPORTED);
-            return;
-        }
-
-        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        final String command = args[0];
-        final double amount = args.length > 1 ? Double.parseDouble(args[1]) : 0;
-
-        final UUID playerSource = ((Player) src).getUniqueId();
-        final GDPlayerData playerData = GriefDefenderPlugin.getInstance().dataStore.getPlayerData(claim.getWorld(), claim.getOwnerUniqueId());
-        if (playerData.canIgnoreClaim(claim) || claim.getOwnerUniqueId().equals(playerSource) || claim.getUserTrusts(TrustTypes.MANAGER).contains(playerData.playerID)) {
-            final UUID bankAccount = claim.getEconomyAccountId().orElse(null);
-            if (bankAccount == null) {
-                GriefDefenderPlugin.sendMessage(src, MessageCache.getInstance().ECONOMY_VIRTUAL_NOT_SUPPORTED);
-                return;
-            }
-            if (command.equalsIgnoreCase("withdraw")) {
-                EconomyResponse result = economy.bankWithdraw(bankAccount.toString(), amount);
-                if (result.transactionSuccess()) {
-                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.BANK_WITHDRAW,
-                        ImmutableMap.of(
-                            "amount", amount));
-                    GriefDefenderPlugin.sendMessage(src, message);
-                    economy.depositPlayer(((Player) src), amount);
-                    claim.getData().getEconomyData().addPaymentTransaction(
-                        new GDPaymentTransaction(TransactionType.BANK_WITHDRAW, TransactionResultType.SUCCESS, playerData.playerID, Instant.now(), amount));
-                } else {
-                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.BANK_WITHDRAW_NO_FUNDS,
-                        ImmutableMap.of(
-                            "balance", economy.bankBalance(bankAccount.toString()),
-                            "amount", amount));
-                    GriefDefenderPlugin.sendMessage(src, message);
-                    claim.getData().getEconomyData()
-                        .addPaymentTransaction(new GDPaymentTransaction(TransactionType.BANK_WITHDRAW, TransactionResultType.FAIL, playerData.playerID, Instant.now(), amount));
-                    return;
-                }
-            } else if (command.equalsIgnoreCase("deposit")) {
-                EconomyResponse result = EconomyUtil.getInstance().withdrawFunds(((Player) src), amount);
-                if (result.transactionSuccess()) {
-                    double depositAmount = amount;
-                    if (claim.getData().isExpired()) {
-                        final double taxBalance = claim.getEconomyData().getTaxBalance();
-                        depositAmount -= claim.getEconomyData().getTaxBalance();
-                        if (depositAmount >= 0) {
-                            claim.getEconomyData().addPaymentTransaction(new GDPaymentTransaction(TransactionType.TAX, TransactionResultType.SUCCESS, Instant.now(), taxBalance));
-                            claim.getEconomyData().setTaxPastDueDate(null);
-                            claim.getEconomyData().setTaxBalance(0);
-                            claim.getInternalClaimData().setExpired(false);
-                            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAID_BALANCE,
-                                    ImmutableMap.of(
-                                        "amount", taxBalance));
-                            GriefDefenderPlugin.sendMessage(src, message);
-                            if (depositAmount == 0) {
-                                return;
-                            }
-                        } else {
-                            final double newTaxBalance = Math.abs(depositAmount);
-                            claim.getEconomyData().setTaxBalance(newTaxBalance);
-                            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAID_PARTIAL,
-                                    ImmutableMap.of(
-                                        "amount", depositAmount,
-                                        "balance", newTaxBalance));
-                            GriefDefenderPlugin.sendMessage(src, message);
-                            return;
-                        }
-                    }
-                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.BANK_DEPOSIT, ImmutableMap.of(
-                            "amount", depositAmount));
-                    GriefDefenderPlugin.sendMessage(src, message);
-                    economy.bankDeposit(bankAccount.toString(), depositAmount);
-                    claim.getData().getEconomyData().addPaymentTransaction(
-                        new GDPaymentTransaction(TransactionType.BANK_DEPOSIT, TransactionResultType.SUCCESS, playerData.playerID, Instant.now(), depositAmount));
-                } else {
-                    GriefDefenderPlugin.sendMessage(src, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.BANK_WITHDRAW_NO_FUNDS));
-                    claim.getData().getEconomyData()
-                        .addPaymentTransaction(new GDPaymentTransaction(TransactionType.BANK_DEPOSIT, TransactionResultType.FAIL, playerData.playerID, Instant.now(), amount));
-                    return;
-                }
-            }
-        } else {
-            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.BANK_NO_PERMISSION,
-                    ImmutableMap.of(
-                            "player", claim.getOwnerName()));
-            GriefDefenderPlugin.sendMessage(src, message);
-        }
-    }
-
-    public static void displayClaimBankInfo(Player player, GDClaim claim) {
-        displayClaimBankInfo(player, claim, false, false);
-    }
-
-    public static void displayClaimBankInfo(CommandSender player, GDClaim claim, boolean checkTown, boolean returnToClaimInfo) {
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
-
-        if (checkTown && !claim.isInTown()) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().TOWN_NOT_IN);
-            return;
-        }
-
-        if (!checkTown && (claim.isSubdivision() || claim.isAdminClaim())) {
-            return;
-        }
-
-        final GDClaim town = claim.getTownClaim();
-        final UUID bankAccount = checkTown ? town.getEconomyAccountId().orElse(null) : claim.getEconomyAccountId().orElse(null);
-        if (bankAccount == null) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_VIRTUAL_NOT_SUPPORTED);
-            return;
-        }
-
-        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        final GDPlayerData playerData = GriefDefenderPlugin.getInstance().dataStore.getPlayerData(claim.getWorld(), claim.getOwnerUniqueId());
-        final double claimBalance = economy.bankBalance(bankAccount.toString()).balance;
-        double taxOwed = -1;
-        final double playerTaxRate = GDPermissionManager.getInstance().getInternalOptionValue(TypeToken.of(Double.class), (Player) player, Options.TAX_RATE, claim);
-        if (checkTown) {
-            if (!town.getOwnerUniqueId().equals(playerData.playerID)) {
-                for (Claim playerClaim : playerData.getInternalClaims()) {
-                    GDClaim playerTown = (GDClaim) playerClaim.getTown().orElse(null);
-                    if (!playerClaim.isTown() && playerTown != null && playerTown.getUniqueId().equals(claim.getUniqueId())) {
-                        taxOwed += playerTown.getClaimBlocks() * playerTaxRate;
-                    }
-                }
-            } else {
-                taxOwed = town.getClaimBlocks() * playerTaxRate;
-            }
-        } else {
-            taxOwed = claim.getClaimBlocks() * playerTaxRate;
-        }
-
-        final GriefDefenderConfig<?> activeConfig = GriefDefenderPlugin.getActiveConfig(claim.getWorld().getUID());
-        final ZonedDateTime withdrawDate = TaskUtil.getNextTargetZoneDate(activeConfig.getConfig().economy.taxApplyHour, 0, 0);
-        Duration duration = Duration.between(Instant.now().truncatedTo(ChronoUnit.SECONDS), withdrawDate.toInstant()) ;
-        final long s = duration.getSeconds();
-        final String timeLeft = String.format("%d:%02d:%02d", s / 3600, (s % 3600) / 60, (s % 60));
-        final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.BANK_INFO,
-                ImmutableMap.of(
-                "balance", claimBalance,
-                "tax-amount", taxOwed,
-                "time-remaining", timeLeft,
-                "tax-balance", claim.getData().getEconomyData().getTaxBalance()));
-        Component transactions = TextComponent.builder("")
-                .append(MessageCache.getInstance().BANK_TITLE_TRANSACTIONS.color(TextColor.AQUA).decoration(TextDecoration.ITALIC, true))
-                .clickEvent(ClickEvent.runCommand(GDCallbackHolder.getInstance().createCallbackRunCommand(createBankTransactionsConsumer(player, claim, checkTown, returnToClaimInfo))))
-                .hoverEvent(HoverEvent.showText(MessageCache.getInstance().BANK_CLICK_VIEW_TRANSACTIONS))
-                .build();
-        List<Component> textList = new ArrayList<>();
-        if (returnToClaimInfo) {
-            textList.add(TextComponent.builder("")
-                    .append("\n[")
-                    .append(MessageCache.getInstance().CLAIMINFO_UI_RETURN_CLAIMINFO.color(TextColor.AQUA))
-                    .append("]\n")
-                    .clickEvent(ClickEvent.runCommand(GDCallbackHolder.getInstance().createCallbackRunCommand(CommandHelper.createCommandConsumer(player, "claiminfo", "")))).build());
-        }
-        textList.add(message);
-        textList.add(transactions);
-        PaginationList.Builder builder = PaginationList.builder()
-                .title(TextComponent.of("Bank Info", TextColor.AQUA)).padding(TextComponent.builder(" ").decoration(TextDecoration.STRIKETHROUGH, true).build()).contents(textList);
-        builder.sendTo(player);
-    }
-
-    public static Consumer<CommandSender> createBankTransactionsConsumer(CommandSender src, GDClaim claim, boolean checkTown, boolean returnToClaimInfo) {
-        return settings -> {
-            List<PaymentTransaction> paymentTransactions = claim.getData().getEconomyData().getPaymentTransactions(TransactionType.BANK_DEPOSIT);
-            List<Component> textList = new ArrayList<>();
-            textList.add(TextComponent.builder("")
-                    .append("\n[")
-                    .append(MessageCache.getInstance().CLAIMINFO_UI_RETURN_BANKINFO.color(TextColor.AQUA))
-                    .append("]\n")
-                    .clickEvent(ClickEvent.runCommand(GDCallbackHolder.getInstance().createCallbackRunCommand(consumer -> { displayClaimBankInfo(src, claim, checkTown, returnToClaimInfo); }))).build());
-            for (PaymentTransaction transaction : paymentTransactions) {
-                final Duration duration = Duration.between(transaction.getTimestamp(), Instant.now().truncatedTo(ChronoUnit.SECONDS)) ;
-                final long s = duration.getSeconds();
-                final GDPermissionUser user = PermissionHolderCache.getInstance().getOrCreateUser(transaction.getSource().orElse(null));
-                final String timeLeft = String.format("%dh %02dm %02ds", s / 3600, (s % 3600) / 60, (s % 60)) + " ago";
-                textList.add(TextComponent.builder("")
-                        .append(transaction.getResultType().name(), getTransactionColor(transaction.getResultType()))
-                        .append(" | ", TextColor.BLUE)
-                        .append(TextComponent.of(String.valueOf(transaction.getAmount())))
-                        .append(" | ", TextColor.BLUE)
-                        .append(timeLeft, TextColor.GRAY)
-                        .append(user == null ? TextComponent.empty() : TextComponent.builder("")
-                                .append(" | ", TextColor.BLUE)
-                                .append(user.getName(), TextColor.LIGHT_PURPLE)
-                                .build())
-                        .build());
-            }
-            textList.add(TextComponent.builder("")
-                    .append("\n[")
-                    .append(MessageCache.getInstance().CLAIMINFO_UI_RETURN_BANKINFO.color(TextColor.AQUA))
-                    .append("]\n")
-                    .clickEvent(ClickEvent.runCommand(GDCallbackHolder.getInstance().createCallbackRunCommand(CommandHelper.createCommandConsumer(src, "claimbank", "")))).build());
-            PaginationList.Builder builder = PaginationList.builder()
-                    .title(MessageCache.getInstance().BANK_TITLE_TRANSACTIONS.color(TextColor.AQUA)).padding(TextComponent.builder(" ").decoration(TextDecoration.STRIKETHROUGH, true).build()).contents(textList);
-            builder.sendTo(src);
         };
     }
 
