@@ -59,13 +59,9 @@ public class CommandClaimBuy extends BaseCommand {
     @Description("%buy-claim")
     @Subcommand("buy claim")
     public void execute(Player player) {
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
 
-        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        if (!economy.hasAccount(player)) {
+        SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+        if (profile == null) {
             final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of(
                     "player", player.getName()));
             GriefDefenderPlugin.sendMessage(player, message);
