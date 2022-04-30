@@ -88,18 +88,10 @@ public class EconomyCategory extends ConfigCategory {
     }
 
     public boolean isSellSignEnabled() {
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            return false;
-        }
-
         return this.sellSignEnabled;
     }
 
     public boolean isRentSignEnabled() {
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            return false;
-        }
-
         return this.rentSignEnabled;
     }
 }
