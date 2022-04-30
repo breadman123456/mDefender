@@ -53,16 +53,7 @@ public class CommandClaimSellBlocks extends BaseCommand {
     @Syntax("[<amount>]")
     @Subcommand("sell blocks")
     public void execute(Player player, @Optional Integer blockCount) {
-        // if economy is disabled, don't do anything
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
-        if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().COMMAND_NOT_AVAILABLE_ECONOMY);
-            return;
-        }
-
+        SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
         final GDPlayerData playerData = GriefDefenderPlugin.getInstance().dataStore.getOrCreatePlayerData(player.getWorld(), player.getUniqueId());
         if (playerData.getEconomyClaimBlockReturn() <= 0) {
             GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_BLOCK_BUY_SELL_DISABLED);
@@ -75,10 +66,8 @@ public class CommandClaimSellBlocks extends BaseCommand {
             return;
         }
 
-        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        if (!economy.hasAccount(player)) {
-            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of(
-                    "player", player.getName()));
+        if (profile == null) {
+            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of("player", player.getName()));
             GriefDefenderPlugin.sendMessage(player, message);
             return;
         }
@@ -92,7 +81,6 @@ public class CommandClaimSellBlocks extends BaseCommand {
             GriefDefenderPlugin.sendMessage(player, message);
             return;
         } else {
-            // try to parse number of blocks
             if (blockCount <= 0) {
                 GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_BLOCK_BUY_INVALID);
                 return;
@@ -101,14 +89,11 @@ public class CommandClaimSellBlocks extends BaseCommand {
                 return;
             }
 
-            // attempt to compute value and deposit it
             double economyTotalValue = blockCount * playerData.getEconomyClaimBlockReturn();
+            final boolean result = profile.getStatistics().withdraw(player, economyTotalValue);
 
-            final EconomyResponse result = economy.depositPlayer(player, economyTotalValue);
-
-            if (!result.transactionSuccess()) {
-                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_SELL_ERROR, ImmutableMap.of(
-                        "reason", result.errorMessage));
+            if (!result) {
+                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_SELL_ERROR, ImmutableMap.of("reason", result.errorMessage));
                 GriefDefenderPlugin.sendMessage(player, message);
                 return;
             }
@@ -129,10 +114,7 @@ public class CommandClaimSellBlocks extends BaseCommand {
                 playerData.setAccruedClaimBlocks(accruedBlocks);
             }
 
-            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_SALE_CONFIRMATION,
-                    ImmutableMap.of(
-                    "deposit", "$" + String.format("%.2f", economyTotalValue),
-                    "amount", playerData.getRemainingClaimBlocks()));
+            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_BLOCK_SALE_CONFIRMATION, ImmutableMap.of("deposit", "$" + String.format("%.2f", economyTotalValue), "amount", playerData.getRemainingClaimBlocks()));
             GriefDefenderPlugin.sendMessage(player, message);
         }
     }
