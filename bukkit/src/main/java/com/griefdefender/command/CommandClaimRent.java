@@ -63,7 +63,6 @@ import net.kyori.text.event.HoverEvent;
 import net.kyori.text.format.TextColor;
 import net.kyori.text.format.TextDecoration;
 import net.kyori.text.serializer.plain.PlainComponentSerializer;
-import net.milkbowl.vault.economy.Economy;
 
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
@@ -86,30 +85,21 @@ public class CommandClaimRent extends BaseCommand {
     @Syntax("create <rate> [<max_days>]|info|list|cancel]")
     @Subcommand("claim rent")
     public void execute(Player player, @Optional String[] args) {
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
         if (!GriefDefenderPlugin.getGlobalConfig().getConfig().economy.rentSystem) {
             GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().RENT_SYSTEM_DISABLED);
             return;
         }
 
-        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        if (!economy.hasAccount(player)) {
-            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of(
-                    "player", player.getName()));
+        SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+        if (profile == null) {
+            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of("player", player.getName()));
             GriefDefenderPlugin.sendMessage(player, message);
             return;
         }
 
-        if (args.length == 0) {
-            throw new InvalidCommandArgument();
-        }
-
+        if (args.length == 0) throw new InvalidCommandArgument();
         if (args != null && args.length > 0) {
             final String subCommand = args[0];
-            // cancel
             if (subCommand.equalsIgnoreCase("cancel")) {
                 final GDPlayerData playerData = GriefDefenderPlugin.getInstance().dataStore.getOrCreatePlayerData(player.getWorld(), player.getUniqueId());
                 final GDClaim claim = GriefDefenderPlugin.getInstance().dataStore.getClaimAtPlayer(playerData, player.getLocation());
