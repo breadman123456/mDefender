@@ -196,37 +196,15 @@ public class CommandClaimAbandonAll extends BaseCommand {
                 GriefDefenderPlugin.getInstance().dataStore.abandonClaimsForPlayer(user, allowedClaims);
                 playerData.useRestoreSchematic = false;
                 playerData.onClaimDelete();
+                
+                SurvivalProfile profile = SurvivalProfile.getByUUID(user.getOfflinePlayer().getUniqueId());
+                if (profile == null) return;
     
-                if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                    final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-                    if (!economy.hasAccount(user.getOfflinePlayer())) {
-                        return;
-                    }
-    
-                    final EconomyResponse result = economy.depositPlayer(user.getOfflinePlayer(), refund);
-                    if (result.transactionSuccess()) {
-                        Component message = null;
-                        if (world != null) {
-                            message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_ABANDON_SUCCESS_WORLD, ImmutableMap.of(
-                                    "world", world.getName(),
-                                    "amount", TextComponent.of(String.valueOf(refund))));
-                        } else {
-                            message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_ABANDON_SUCCESS, ImmutableMap.of(
-                                    "amount", TextComponent.of(String.valueOf(refund))));
-                        }
-                        TextAdapter.sendComponent(player, message);
-                    }
-                } else {
-                    int remainingBlocks = playerData.getRemainingClaimBlocks();
+                final boolean result = profile.getStatistics().deposit(user.getOfflinePlayer(), refund);
+                if (result.transactionSuccess()) {
                     Component message = null;
-                    if (world != null) {
-                        message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_SUCCESS_WORLD, ImmutableMap.of(
-                                "world", world.getName(),
-                                "amount", remainingBlocks));
-                    } else {
-                        message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_SUCCESS, ImmutableMap.of(
-                            "amount", remainingBlocks));
-                    }
+                    if (world != null) message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_ABANDON_SUCCESS_WORLD, ImmutableMap.of("world", world.getName(), "amount", TextComponent.of(String.valueOf(refund))));
+                    else message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_ABANDON_SUCCESS, ImmutableMap.of("amount", TextComponent.of(String.valueOf(refund))));
                     TextAdapter.sendComponent(player, message);
                 }
             }
