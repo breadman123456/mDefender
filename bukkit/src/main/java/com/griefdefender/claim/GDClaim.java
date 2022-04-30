@@ -1394,50 +1394,24 @@ public class GDClaim implements Claim {
             if ((this.isBasicClaim() || this.isTown()) && this.claimData.requiresClaimBlocks()) {
                 final int newCost = BlockUtil.getInstance().getClaimBlockCost(this.world, newLesserCorner, newGreaterCorner, this.cuboid);
                 final int currentCost = BlockUtil.getInstance().getClaimBlockCost(this.world, currentLesserCorner, currentGreaterCorner, this.cuboid);
-                if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                    if (!this.vaultProvider.getApi().hasAccount(player)) {
-                        return new GDClaimResult(ClaimResultType.ECONOMY_ACCOUNT_NOT_FOUND);
-                    }
-    
-                    final double requiredFunds = Math.abs((newCost - currentCost) * this.getOwnerEconomyBlockCost());
-                    if (newCost > currentCost) {
-                        final double currentFunds = this.vaultProvider.getApi().getBalance(player);
-                        final EconomyResponse economyResponse = EconomyUtil.getInstance().withdrawFunds(player, requiredFunds);
-                        if (!economyResponse.transactionSuccess()) {
-                            Component message = null;
-                            if (player != null) {
-                                message = MessageStorage.MESSAGE_DATA.getMessage(MessageStorage.ECONOMY_NOT_ENOUGH_FUNDS, ImmutableMap.of(
-                                        "balance", this.vaultProvider.getApi().getBalance(player),
-                                        "amount", requiredFunds));
-                                GriefDefenderPlugin.sendMessage(player, message);
-                            }
-        
-                            this.lesserBoundaryCorner = currentLesserCorner;
-                            this.greaterBoundaryCorner = currentGreaterCorner;
-                            return new GDClaimResult(ClaimResultType.ECONOMY_NOT_ENOUGH_FUNDS, message);
-                        }
-                    } else {
-                        final EconomyResponse economyResponse = this.vaultProvider.getApi().depositPlayer(player, requiredFunds);
-                    }
-                } else if (newCost > currentCost) {
-                    final int remainingClaimBlocks = this.ownerPlayerData.getRemainingClaimBlocks() - (newCost - currentCost);
-                    if (remainingClaimBlocks < 0) {
+                SurvivalProfile profile = SurvivalProfile.getByPlayer(player);    
+                if (profile == null) return new GDClaimResult(ClaimResultType.ECONOMY_ACCOUNT_NOT_FOUND);
+                final double requiredFunds = Math.abs((newCost - currentCost) * this.getOwnerEconomyBlockCost());
+                if (newCost > currentCost) {
+                    final int currentFunds = profile.getStatistics().balance();
+                    final boolean economyResponse = profile.getStatistics().withdraw(player, requiredFunds);
+                    if (!economyResponse) {
+                        Component message = null;
                         if (player != null) {
-                            if (GriefDefenderPlugin.CLAIM_BLOCK_SYSTEM == ClaimBlockSystem.VOLUME) {
-                                final double claimableChunks = Math.abs(remainingClaimBlocks / 65536.0);
-                                GriefDefenderPlugin.sendMessage(player, MessageStorage.MESSAGE_DATA.getMessage(MessageStorage.CLAIM_SIZE_NEED_BLOCKS_3D, ImmutableMap.of(
-                                        "chunk-amount", Math.round(claimableChunks * 100.0)/100.0,
-                                        "block-amount", Math.abs(remainingClaimBlocks))));
-                            } else {
-                                GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.CLAIM_SIZE_NEED_BLOCKS_2D, ImmutableMap.of(
-                                        "block-amount", Math.abs(remainingClaimBlocks))));
-                            }
+                            message = MessageStorage.MESSAGE_DATA.getMessage(MessageStorage.ECONOMY_NOT_ENOUGH_FUNDS, ImmutableMap.of("balance", profile.getStatistics().balance(), "amount", requiredFunds));
+                            GriefDefenderPlugin.sendMessage(player, message);
                         }
-
                         this.lesserBoundaryCorner = currentLesserCorner;
                         this.greaterBoundaryCorner = currentGreaterCorner;
-                        return new GDClaimResult(ClaimResultType.INSUFFICIENT_CLAIM_BLOCKS);
+                        return new GDClaimResult(ClaimResultType.ECONOMY_NOT_ENOUGH_FUNDS, message);
                     }
+                } else {
+                    final boolean response = profile.getStatistics().deposit(player, requiredFunds);
                 }
             }
         }
@@ -2616,22 +2590,6 @@ public class GDClaim implements Claim {
         return ImmutableList.copyOf(this.getGroupTrustList(type));
     }
 
-    public Optional<UUID> getEconomyAccountId() {
-        if (this.vaultProvider == null || this.vaultProvider.getApi() == null || !this.vaultProvider.getApi().hasBankSupport() || this.isAdminClaim() || this.isSubdivision() || !GriefDefenderPlugin.getGlobalConfig().getConfig().economy.bankSystem) {
-            return Optional.empty();
-        }
-
-        if (this.vaultProvider.getApi().getBanks().contains(this.id.toString())) {
-            return Optional.of(this.id);
-        }
-
-        if (this.vaultProvider != null) {
-            this.vaultProvider.getApi().createBank(this.claimStorage.filePath.getFileName().toString(), this.ownerPlayerData.getSubject().getOfflinePlayer());
-            return Optional.ofNullable(this.id);
-        }
-        return Optional.empty();
-    }
-
     @Override
     public boolean isPvpAllowed() {
         final Set<Context> contexts = new HashSet<>();
@@ -2930,31 +2888,28 @@ public class GDClaim implements Claim {
                 if (claim.isTown() && player != null) {
                     final double townCost = GriefDefenderPlugin.getGlobalConfig().getConfig().town.cost;
                     if (townCost > 0) {
-                        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-                        if (!economy.hasAccount(player)) {
-                            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of(
-                                    "player", claim.getOwnerDisplayName()));
+                        SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+                        if (profile == null) {
+                            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_PLAYER_NOT_FOUND, ImmutableMap.of("player", claim.getOwnerDisplayName()));
                             GriefDefenderPlugin.sendMessage(player, message);
                             return new GDClaimResult(claim, ClaimResultType.NOT_ENOUGH_FUNDS, message);
                         }
-                        final double balance = economy.getBalance(player);
+                        final int balance = profile.getStatistics().balance();
                         if (balance < townCost) {
-                            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TOWN_CREATE_NOT_ENOUGH_FUNDS, ImmutableMap.of(
-                                    "amount", String.valueOf("$" +townCost),
-                                    "balance", String.valueOf("$" + balance),
-                                    "amount-needed", String.valueOf("$" + (townCost - balance))));
+                            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TOWN_CREATE_NOT_ENOUGH_FUNDS, ImmutableMap.of("amount", String.valueOf("$" + townCost), "balance", String.valueOf("$" + balance), "amount-needed", String.valueOf("$" + (townCost - balance))));
                             GriefDefenderPlugin.sendMessage(player, message);
                             return new GDClaimResult(claim, ClaimResultType.NOT_ENOUGH_FUNDS, message);
                         }
-                        EconomyUtil.getInstance().withdrawFunds(player, townCost);
+                        profile.getStatistics().withdraw(player, townCost);
                     }
                 }
             }
 
             final ClaimResult claimResult = claim.checkArea(false);
             if (!claimResult.successful()) {
-                if (player != null && (claim.isBasicClaim() || claim.isTown()) && this.requiresClaimBlocks && GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                    GriefDefenderPlugin.getInstance().getVaultProvider().getApi().depositPlayer(player, requiredFunds);
+                if (player != null && (claim.isBasicClaim() || claim.isTown()) && this.requiresClaimBlocks) {
+                    SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+                    profile.getStatistics().deposit(player, requiredFunds);
                 }
                 return claimResult;
             }
@@ -2966,8 +2921,9 @@ public class GDClaim implements Claim {
                 if (message != null && player != null) {
                     GriefDefenderPlugin.sendMessage(player, message);
                 }
-                if (player != null && (claim.isBasicClaim() || claim.isTown()) && this.requiresClaimBlocks && GriefDefenderPlugin.getGlobalConfig().getConfig().economy.economyMode) {
-                    GriefDefenderPlugin.getInstance().getVaultProvider().getApi().depositPlayer(player, requiredFunds);
+                if (player != null && (claim.isBasicClaim() || claim.isTown()) && this.requiresClaimBlocks) {
+                    SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+                    profile.getStatistics().deposit(player, requiredFunds);
                 }
                 return new GDClaimResult(claim, ClaimResultType.CLAIM_EVENT_CANCELLED, message);
             }
