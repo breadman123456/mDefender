@@ -62,7 +62,6 @@ public class RentDelinquentApplyTask extends BukkitRunnable {
     Economy economy;
 
     public RentDelinquentApplyTask() {
-        this.economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
         int delinquentHour = GriefDefenderPlugin.getGlobalConfig().getConfig().economy.rentDelinquentApplyHour;
         long delay = TaskUtil.computeDelay(delinquentHour, 0, 0);
         this.runTaskTimer(GDBootstrap.getInstance(), delay, 1728000L);
@@ -71,9 +70,6 @@ public class RentDelinquentApplyTask extends BukkitRunnable {
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public void run() {
-        if (this.economy == null) {
-            this.economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        }
         for (World world : Bukkit.getWorlds()) {
             GDClaimManager claimManager = GriefDefenderPlugin.getInstance().dataStore.getClaimWorldManager(world.getUID());
             ArrayList<Claim> claimList = (ArrayList<Claim>) new ArrayList<>(claimManager.getWorldClaims());
@@ -127,12 +123,12 @@ public class RentDelinquentApplyTask extends BukkitRunnable {
         final double totalrentOwed = rentBalance;
         //for (UUID uuid : renters) {
         final Player player = renter.getOnlinePlayer();
-        final EconomyResponse response = EconomyUtil.getInstance().withdrawFunds(renter.getOfflinePlayer(), totalrentOwed);
-        if (!response.transactionSuccess()) {
+        final SurvivalProfile profile = SurvivalProfile.getByUUID(player.getOfflinePlayer().getUniqueId());
+        final boolean response = profile.getStatistics().withdraw(renter.getOfflinePlayer(), totalrentOwed); 
+        if (!response) {
             claim.getEconomyData().addPaymentTransaction(new GDPaymentTransaction(TransactionType.RENT, TransactionResultType.FAIL, Instant.now(), rentBalance));
             if (player != null) {
-                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_RENT_PAYMENT_FAILURE, ImmutableMap.of(
-                        "balance", totalrentOwed));
+                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_RENT_PAYMENT_FAILURE, ImmutableMap.of("balance", totalrentOwed));
                 GriefDefenderPlugin.sendMessage(player, message);
             }
         } else {
@@ -141,12 +137,7 @@ public class RentDelinquentApplyTask extends BukkitRunnable {
             claim.getEconomyData().setRentBalance(playerData.playerID, 0);
             claim.getData().save();
             if (player != null) {
-                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_RENT_PAYMENT_SUCCESS, ImmutableMap.of(
-                        "total-funds", this.economy.getBalance(player),
-                        "amount", rentBalance,
-                        "balance", totalrentOwed,
-                        "days-remaining", 5
-                        ));
+                final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_RENT_PAYMENT_SUCCESS, ImmutableMap.of("total-funds", profile.getStatistics().balance(), "amount", rentBalance, "balance", totalrentOwed, "days-remaining", 5));
                 GriefDefenderPlugin.sendMessage(player, message);
             }
         }
