@@ -69,11 +69,6 @@ public class CommandClaimTax extends BaseCommand {
             return;
         }
 
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
-
         if (args.length == 0) {
             throw new InvalidCommandArgument();
         }
@@ -89,64 +84,45 @@ public class CommandClaimTax extends BaseCommand {
             return;
         }
 
-        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
         final String command = args[0];
         double amount = args.length > 1 ? Double.parseDouble(args[1]) : 0;
 
         if (command.equalsIgnoreCase("balance")) {
             final double taxBalance = claim.getEconomyData().getTaxBalance();
             Component message = null;
-            if (taxBalance > 0) {
-                message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAST_DUE,
-                        ImmutableMap.of(
-                            "balance", taxBalance,
-                            "date", Date.from(claim.getEconomyData().getTaxPastDueDate())));
-            } else {
-                message = MessageCache.getInstance().TAX_NO_BALANCE;
-            }
+            if (taxBalance > 0) message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAST_DUE, ImmutableMap.of("balance", taxBalance, "date", Date.from(claim.getEconomyData().getTaxPastDueDate())));
+            else message = MessageCache.getInstance().TAX_NO_BALANCE;
             GriefDefenderPlugin.sendMessage(player, message);
         } else if (command.equalsIgnoreCase("force")) {
-            if (playerData.ignoreClaims || player.hasPermission(GDPermissions.COMMAND_CLAIM_TAX_FORCE)) {
-                TaxApplyTask.handleClaimTax(claim, playerData, claim.isInTown());
-            }
+            if (playerData.ignoreClaims || player.hasPermission(GDPermissions.COMMAND_CLAIM_TAX_FORCE)) TaxApplyTask.handleClaimTax(claim, playerData, claim.isInTown());
         } else if (command.equalsIgnoreCase("pay")) {
             final double taxBalance = claim.getEconomyData().getTaxBalance();
-            if (taxBalance <= 0 || amount <= 0) {
-                return;
-            }
-
-            if (amount > taxBalance) {
-                amount = taxBalance;
-            }
-
-            EconomyResponse result = EconomyUtil.getInstance().withdrawFunds(player, amount);
-            if (result.transactionSuccess()) {
+            if (taxBalance <= 0 || amount <= 0) return;
+            if (amount > taxBalance) amount = taxBalance;
+            
+            SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+            boolean result = profile.getStatistics().withdraw(player, amount);
+            if (result) {
                 double depositAmount = amount;
-                    depositAmount -= claim.getEconomyData().getTaxBalance();
+                depositAmount -= claim.getEconomyData().getTaxBalance();
                 if (depositAmount >= 0) {
                     claim.getEconomyData().addPaymentTransaction(new GDPaymentTransaction(TransactionType.TAX, TransactionResultType.SUCCESS, Instant.now(), taxBalance));
                     claim.getEconomyData().setTaxPastDueDate(null);
                     claim.getEconomyData().setTaxBalance(0);
                     claim.getInternalClaimData().setExpired(false);
-                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAID_BALANCE,
-                            ImmutableMap.of(
-                                "amount", taxBalance));
+                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAID_BALANCE, ImmutableMap.of("amount", taxBalance));
                     GriefDefenderPlugin.sendMessage(player, message);
                     return;
                 } else {
                     final double newTaxBalance = Math.abs(depositAmount);
                     claim.getEconomyData().setTaxBalance(newTaxBalance);
-                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAID_PARTIAL,
-                            ImmutableMap.of(
-                                "amount", depositAmount,
-                                "balance", newTaxBalance));
+                    final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAID_PARTIAL, ImmutableMap.of("amount", depositAmount,"balance", newTaxBalance));
                     GriefDefenderPlugin.sendMessage(player, message);
                     return;
                 }
             } else {
                 GriefDefenderPlugin.sendMessage(player, GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.TAX_PAY_NO_FUNDS));
-                claim.getData().getEconomyData()
-                    .addPaymentTransaction(new GDPaymentTransaction(TransactionType.TAX, TransactionResultType.FAIL, playerData.playerID, Instant.now(), amount));
+                claim.getData().getEconomyData().addPaymentTransaction(new GDPaymentTransaction(TransactionType.TAX, TransactionResultType.FAIL, playerData.playerID, Instant.now(), amount));
                 return;
             }
         }
