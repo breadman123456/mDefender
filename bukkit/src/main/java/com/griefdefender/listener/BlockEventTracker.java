@@ -144,7 +144,7 @@ public class BlockEventTracker implements Listener {
         }
         // Check if sign broke
         final Block block = event.getBlock();
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() != null && (GriefDefenderPlugin.getGlobalConfig().getConfig().economy.isRentSignEnabled() || GriefDefenderPlugin.getGlobalConfig().getConfig().economy.isSellSignEnabled())) {
+        if ((GriefDefenderPlugin.getGlobalConfig().getConfig().economy.isRentSignEnabled() || GriefDefenderPlugin.getGlobalConfig().getConfig().economy.isSellSignEnabled())) {
             if (SignUtil.isSign(block) && block.getState().getData() instanceof org.bukkit.material.Sign) {
                 final org.bukkit.material.Sign sign = (org.bukkit.material.Sign) block.getState().getData();
                 final BlockFace face = sign.getAttachedFace();
