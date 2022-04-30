@@ -73,7 +73,6 @@ public class RentApplyTask extends BukkitRunnable {
     Economy economy;
 
     public RentApplyTask() {
-        this.economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
         final int rentTaskInterval = GriefDefenderPlugin.getGlobalConfig().getConfig().economy.rentTaskInterval;
         if (GriefDefenderPlugin.getGlobalConfig().getConfig().economy.rentSystem) {
             this.runTaskTimer(GDBootstrap.getInstance(), 20, rentTaskInterval * 20 * 60);
@@ -83,9 +82,6 @@ public class RentApplyTask extends BukkitRunnable {
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public void run() {
-        if (this.economy == null) {
-            this.economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-        }
         for (World world : Bukkit.getWorlds()) {
             if (!GriefDefenderPlugin.getInstance().claimsEnabledForWorld(world.getUID())) {
                 continue;
@@ -151,8 +147,9 @@ public class RentApplyTask extends BukkitRunnable {
         }
         final Player player = renter.getOnlinePlayer();
         if (totalrentOwed > 0) {
-            final EconomyResponse response = EconomyUtil.getInstance().withdrawFunds(renter.getOfflinePlayer(), totalrentOwed);
-            if (!response.transactionSuccess()) {
+            SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+            final boolean response = profile.getStatistics().withdraw(renter.getOfflinePlayer(), totalrentOwed);
+            if (!response) {
                 Instant rentPastDue = claim.getEconomyData().getRentPastDueDate();
                 if (rentPastDue == null) {
                     claim.getEconomyData().setRentPastDueDate(localNow);
