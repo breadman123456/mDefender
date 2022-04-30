@@ -82,8 +82,7 @@ public class CommandClaimAbandonWorld extends BaseCommand {
         if (worldName != null) {
             world = Bukkit.getWorld(worldName);
             if (world == null) {
-                TextAdapter.sendComponent(player, MessageStorage.MESSAGE_DATA.getMessage(MessageStorage.COMMAND_WORLD_NOT_FOUND,
-                        ImmutableMap.of("world", worldName)));
+                TextAdapter.sendComponent(player, MessageStorage.MESSAGE_DATA.getMessage(MessageStorage.COMMAND_WORLD_NOT_FOUND, ImmutableMap.of("world", worldName)));
                 return;
             }
         }
@@ -155,42 +154,24 @@ public class CommandClaimAbandonWorld extends BaseCommand {
                             continue;
                         }
                         final double abandonReturnRatio = GDPermissionManager.getInstance().getInternalOptionValue(TypeToken.of(Double.class), user, Options.ABANDON_RETURN_RATIO, claim);
-                        if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                            refund += claim.getClaimBlocks() * abandonReturnRatio;
-                        } else {
-                            playerData.setAccruedClaimBlocks(playerData.getAccruedClaimBlocks() - ((int) Math.ceil(claim.getClaimBlocks() * (1 - abandonReturnRatio))));
-                        }
+                        refund += claim.getClaimBlocks() * abandonReturnRatio;
                     }
 
-                    //playerData.useRestoreSchematic = event.isRestoring();
                     GriefDefenderPlugin.getInstance().dataStore.abandonClaimsForPlayer(user, allowedClaims);
-                    //playerData.useRestoreSchematic = false;
                     playerData.onClaimDelete();
 
                     if (GriefDefenderPlugin.getInstance().isEconomyModeEnabled()) {
-                        final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-                        if (!economy.hasAccount(user.getOfflinePlayer())) {
-                            continue;
-                        }
+                        SurvivalProfile profile = SurvivalProfile.getByPlayer(player);
+                        if (profile == null) continue;
 
-                        final EconomyResponse result = economy.depositPlayer(user.getOfflinePlayer(), refund);
-                        if (result.transactionSuccess() && player != null) {
-                            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_ABANDON_SUCCESS_WORLD, ImmutableMap.of(
-                                    "world", world.getName(),
-                                    "amount", TextComponent.of(String.valueOf(refund))));
+                        final boolean result = profile.getStatistics().deposit(user.getOfflinePlayer(), refund);
+                        if (result && player != null) {
+                            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ECONOMY_CLAIM_ABANDON_SUCCESS_WORLD, ImmutableMap.of("world", world.getName(), "amount", TextComponent.of(String.valueOf(refund))));
                             TextAdapter.sendComponent(player, message);
                         }
-                    } else if (player != null) {
-                        int remainingBlocks = playerData.getRemainingClaimBlocks();
-                        final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_SUCCESS_WORLD, ImmutableMap.of(
-                                    "world", world.getName(),
-                                    "amount", remainingBlocks));
-                        TextAdapter.sendComponent(player, message);
-                    }
                 }
             }
-            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_WORLD_SUCCESS, ImmutableMap.of(
-                    "world", world.getName()));
+            final Component message = GriefDefenderPlugin.getInstance().messageData.getMessage(MessageStorage.ABANDON_WORLD_SUCCESS, ImmutableMap.of("world", world.getName()));
             TextAdapter.sendComponent(source, message);
         };
     }
