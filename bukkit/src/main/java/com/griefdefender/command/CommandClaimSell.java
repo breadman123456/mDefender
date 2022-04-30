@@ -59,12 +59,6 @@ public class CommandClaimSell extends BaseCommand {
     @Syntax("<amount> | cancel")
     @Subcommand("sell claim")
     public void execute(Player player, String arg) throws InvalidCommandArgument {
-        // if economy is disabled, don't do anything
-        if (GriefDefenderPlugin.getInstance().getVaultProvider() == null) {
-            GriefDefenderPlugin.sendMessage(player, MessageCache.getInstance().ECONOMY_NOT_INSTALLED);
-            return;
-        }
-
         final GDPlayerData playerData = GriefDefenderPlugin.getInstance().dataStore.getOrCreatePlayerData(player.getWorld(), player.getUniqueId());
         final GDClaim claim = GriefDefenderPlugin.getInstance().dataStore.getClaimAt(player.getLocation());
 
