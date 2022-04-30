@@ -101,20 +101,14 @@ public class GDClaimManager implements ClaimManager {
         this.worldUniqueId = world.getUID();
         this.worldName = world.getName();
         this.playerIndexStorage = new PlayerIndexStorage(world);
-        if (GriefDefenderPlugin.getActiveConfig(this.worldUniqueId).getConfig().claim.restrictWorldMaxHeight) {
-            this.worldMaxHeight = world.getMaxHeight() - 1;
-        } else {
-            this.worldMaxHeight = -1;
-        }
+        if (GriefDefenderPlugin.getActiveConfig(this.worldUniqueId).getConfig().claim.restrictWorldMaxHeight) this.worldMaxHeight = world.getMaxHeight() - 1;
+        else this.worldMaxHeight = -1;
     }
 
     public GDPlayerData getOrCreatePlayerData(UUID playerUniqueId) {
         GDPlayerData playerData = this.getPlayerDataMap().get(playerUniqueId);
-        if (playerData == null) {
-            return createPlayerData(playerUniqueId);
-        } else {
-            return playerData;
-        }
+        if (playerData == null) return createPlayerData(playerUniqueId);
+        else return playerData;
     }
 
     private GDPlayerData createPlayerData(UUID playerUniqueId) {
@@ -131,34 +125,22 @@ public class GDClaimManager implements ClaimManager {
                 GDClaimManager claimmanager = DATASTORE.getClaimWorldManager(world.getUID());
                 for (Claim claim : claimmanager.worldClaims) {
                     GDClaim gdClaim = (GDClaim) claim;
-                    if (gdClaim.isAdminClaim()) {
-                        continue;
-                    }
+                    if (gdClaim.isAdminClaim()) continue;
                     if (gdClaim.parent != null) {
-                       if (gdClaim.parent.getOwnerUniqueId().equals(playerUniqueId)) {
-                           claimList.add(claim);
-                       }
+                       if (gdClaim.parent.getOwnerUniqueId().equals(playerUniqueId)) claimList.add(claim);
                     } else {
-                        if (gdClaim.getOwnerUniqueId().equals(playerUniqueId)) {
-                            claimList.add(claim);
-                        }
+                        if (gdClaim.getOwnerUniqueId().equals(playerUniqueId)) claimList.add(claim);
                     }
                 }
             }
         } else {
             for (Claim claim : this.worldClaims) {
                 GDClaim gdClaim = (GDClaim) claim;
-                if (gdClaim.isAdminClaim()) {
-                    continue;
-                }
+                if (gdClaim.isAdminClaim()) continue;
                 if (gdClaim.parent != null) {
-                   if (gdClaim.parent.getOwnerUniqueId().equals(playerUniqueId)) {
-                       claimList.add(claim);
-                   }
+                   if (gdClaim.parent.getOwnerUniqueId().equals(playerUniqueId)) claimList.add(claim);
                 } else {
-                    if (gdClaim.getOwnerUniqueId().equals(playerUniqueId)) {
-                        claimList.add(claim);
-                    }
+                    if (gdClaim.getOwnerUniqueId().equals(playerUniqueId)) claimList.add(claim);
                 }
             }
         }
@@ -172,39 +154,22 @@ public class GDClaimManager implements ClaimManager {
 
     public ClaimResult addClaim(Claim claim) {
         GDClaim newClaim = (GDClaim) claim;
-        // ensure this new claim won't overlap any existing claims
         ClaimResult result = newClaim.checkArea(false);
-        if (!result.successful()) {
-            return result;
-        }
-
-        // validate world
+        if (!result.successful()) return result;
         if (!this.worldUniqueId.equals(newClaim.getWorld().getUID())) {
             World world = Bukkit.getServer().getWorld(this.worldUniqueId);
             newClaim.setWorld(world);
         }
-
-        // otherwise add this new claim to the data store to make it effective
         this.addClaim(newClaim, true);
-        if (result.getClaims().size() > 1) {
-            newClaim.migrateClaims(new ArrayList<>(result.getClaims()));
-        }
+        if (result.getClaims().size() > 1) newClaim.migrateClaims(new ArrayList<>(result.getClaims()));
         return result;
     }
 
     public void addClaim(Claim claimToAdd, boolean writeToStorage) {
         GDClaim claim = (GDClaim) claimToAdd;
-        if (claim.parent == null && this.worldClaims.contains(claimToAdd)) {
-            return;
-        }
-
-        if (writeToStorage) {
-            DATASTORE.writeClaimToStorage(claim);
-        }
-
-        // We need to keep track of all claims so they can be referenced by children during server startup
+        if (claim.parent == null && this.worldClaims.contains(claimToAdd)) return;
+        if (writeToStorage) DATASTORE.writeClaimToStorage(claim);
         this.claimUniqueIdMap.put(claim.getUniqueId(), claim);
-
         if (claim.isWilderness()) {
             this.theWildernessClaim = claim;
             return;
@@ -218,9 +183,7 @@ public class GDClaimManager implements ClaimManager {
                 final GDPlayerData playerData = this.getPlayerDataMap().get(claim.getOwnerUniqueId());
                 if (playerData != null) {
                     Set<Claim> playerClaims = playerData.getInternalClaims();
-                    if (!playerClaims.contains(claim)) {
-                        playerClaims.add(claim);
-                    }
+                    if (!playerClaims.contains(claim)) playerClaims.add(claim);
                 }
             }
             return;
@@ -296,19 +259,6 @@ public class GDClaimManager implements ClaimManager {
 
         resetPlayerClaimVisuals(claim);
         // transfer bank balance to owner
-        final UUID bankAccount = claim.getEconomyAccountId().orElse(null);
-        if (bankAccount != null) {
-            final Economy economy = GriefDefenderPlugin.getInstance().getVaultProvider().getApi();
-            final GDPlayerData playerData = ((GDClaim) claim).getOwnerPlayerData();
-            if (playerData != null) {
-                final OfflinePlayer vaultPlayer = playerData.getSubject().getOfflinePlayer();
-                if (vaultPlayer != null && !economy.hasAccount(vaultPlayer)) {
-                    final double bankBalance = economy.bankBalance(claim.getUniqueId().toString()).amount;
-                    economy.depositPlayer(vaultPlayer, bankBalance);
-                }
-            }
-            economy.deleteBank(claim.getUniqueId().toString());
-        }
         this.worldClaims.remove(claim);
         this.claimUniqueIdMap.remove(claim.getUniqueId());
         this.deleteChunkHashes((GDClaim) claim);
