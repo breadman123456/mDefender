@@ -287,12 +287,7 @@ public class PermissionUtil {
                     allowTeleport = false;
                 } else {
                     if (!claim.isUserTrusted(player, TrustTypes.ACCESSOR)) {
-                        if (GriefDefenderPlugin.getInstance().getVaultProvider() != null) {
-                            // Allow non-trusted to TP to claims for sale
-                            if (!claim.getEconomyData().isForSale() && !claim.getEconomyData().isForRent()) {
-                                allowTeleport = false;
-                            }
-                        } else {
+                        if (!claim.getEconomyData().isForSale() && !claim.getEconomyData().isForRent()) {
                             allowTeleport = false;
                         }
                     }
